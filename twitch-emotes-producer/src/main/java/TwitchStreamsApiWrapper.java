@@ -45,8 +45,7 @@ public class TwitchStreamsApiWrapper {
   TwitchStreamsApiWrapper () {
     mConfig = new Properties();
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    InputStream stream = loader.getResourceAsStream("config.properties");
-    try {
+    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
       mConfig.load(stream);
     } catch (IOException e) {
       // Invalid config file, we can't recover from this.

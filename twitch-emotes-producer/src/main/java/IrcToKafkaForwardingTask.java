@@ -50,8 +50,7 @@ public class IrcToKafkaForwardingTask implements Runnable {
   public void run() {
     Properties config = new Properties();
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    InputStream stream = loader.getResourceAsStream("config.properties");
-    try {
+    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
       config.load(stream);
     } catch (IOException e) {
       // Invalid config file, we can't recover from this.
