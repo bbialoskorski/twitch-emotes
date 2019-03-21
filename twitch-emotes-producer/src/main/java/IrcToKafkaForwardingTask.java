@@ -61,25 +61,24 @@ public class IrcToKafkaForwardingTask implements Runnable {
         Integer.parseInt(config.getProperty("twitchIrcServerPort")))) {
 
       TwitchIrcWriterProxy ircWriter = new TwitchIrcWriterProxy(socket.getOutputStream());
-      Scanner in = new Scanner(socket.getInputStream());
+      try (Scanner in = new Scanner(socket.getInputStream())) {
 
-      ircWriter.establishConnection(config.getProperty("twitchUsername"),
-                                    config.getProperty("twitchOauthToken"));
+        ircWriter.establishConnection(config.getProperty("twitchUsername"),
+            config.getProperty("twitchOauthToken"));
 
-      ircWriter.join(mChannelName);
+        ircWriter.join(mChannelName);
 
-      while (in.hasNext() && !Thread.interrupted()) {
-        String serverMessage = in.nextLine();
-        // We only want to route server messages that represent users' chat messages.
-        // We're also checking whether the message we received from the server was a PING and if so
-        // we send PONG response in order to keep the connection alive.
-        if (!ircWriter.pong(serverMessage) && serverMessage.contains("PRIVMSG")) {
-          mKafkaProducer.send(new ProducerRecord<>(config.getProperty("twitchChatKafkaTopic"),
-                              serverMessage));
-          mKafkaProducer.flush();
+        while (in.hasNext() && !Thread.interrupted()) {
+          String serverMessage = in.nextLine();
+          // We only want to route server messages that represent users' chat messages.
+          // We're also checking whether the message we received from the server was a PING and if so
+          // we send PONG response in order to keep the connection alive.
+          if (!ircWriter.pong(serverMessage) && serverMessage.contains("PRIVMSG")) {
+            mKafkaProducer.send(new ProducerRecord<>(config.getProperty("twitchChatKafkaTopic"),
+                serverMessage));
+          }
         }
       }
-
     } catch (UnknownHostException e) {
       throw new AssertionError("This should never happen, it means that there is an error in"
           + " configuration and we can't recover.", e);
