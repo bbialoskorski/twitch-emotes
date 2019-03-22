@@ -20,51 +20,52 @@ SOFTWARE.
 ================================================================================*/
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Properties;
 import java.util.Scanner;
 import java.util.logging.Logger;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
 
 /**
- * Connects to twitch.tv channel and forwards chat messages to a consumer.
+ * Connects to irc channel and forwards chat messages to a consumer.
  */
 public class IrcChatMessagesForwardingTask implements Runnable {
 
+  private final String mIrcServerAddress;
+  private final Integer mPort;
+  private final String mDaemon;
+  private final String mUsername;
+  private final String mOAuthToken;
   private final String mChannelName;
-  private DataSender<String> mDataSender;
+  private final DataSender<String> mDataSender;
 
   /**
-   * @param channelName name of twitch.tv channel you want to forward messages from
-   * @param dataSender dataSender forwarding chat messages
+   * @param ircServerAddress address of irc server
+   * @param port port to connect to
+   * @param daemon daemon which will receive PONG messages
+   * @param username irc username
+   * @param oAuthToken irc OAuth token
+   * @param channelName name of irc channel you want to forward messages from
+   * @param dataSender forwarding chat messages to some consumer
    */
-  IrcChatMessagesForwardingTask(String channelName, DataSender<String> dataSender) {
+  IrcChatMessagesForwardingTask(String ircServerAddress, Integer port, String daemon,
+      String username, String oAuthToken, String channelName, DataSender<String> dataSender) {
+    mIrcServerAddress = ircServerAddress;
+    mPort = port;
+    mDaemon = daemon;
+    mUsername = username;
+    mOAuthToken = oAuthToken;
     mChannelName = channelName;
     mDataSender = dataSender;
   }
 
   @Override
   public void run() {
-    Properties config = new Properties();
-    ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
-      config.load(stream);
-    } catch (IOException e) {
-      // Invalid config file, we can't recover from this.
-      throw new AssertionError("Invalid config.properties file, can't recover from this.", e);
-    }
+    try (Socket socket = new Socket(mIrcServerAddress, mPort)) {
 
-    try (Socket socket = new Socket(config.getProperty("twitchIrcServerAddress"),
-        Integer.parseInt(config.getProperty("twitchIrcServerPort")))) {
-
-      TwitchIrcWriterProxy ircWriter = new TwitchIrcWriterProxy(socket.getOutputStream());
+      IrcWriterProxy ircWriter = new IrcWriterProxy(socket.getOutputStream(), mDaemon);
       try (Scanner in = new Scanner(socket.getInputStream())) {
 
-        ircWriter.establishConnection(config.getProperty("twitchUsername"),
-            config.getProperty("twitchOauthToken"));
+        ircWriter.establishConnection(mUsername, mOAuthToken);
 
         ircWriter.join(mChannelName);
 
