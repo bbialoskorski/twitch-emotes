@@ -32,6 +32,7 @@ public class IrcWriterProxy {
 
   /**
    * @param outputStream output stream of irc server connection
+   * @param daemon which should receive PONG messages
    */
   IrcWriterProxy(OutputStream outputStream, String daemon) {
     mOut = new PrintWriter(outputStream);
@@ -40,9 +41,12 @@ public class IrcWriterProxy {
 
   /**
    * Establishes connection with irc server.
+   *
+   * @param username irc username
+   * @param oAuthToken OAuth token to irc server
    */
-  public void establishConnection(String username, String oauthToken) {
-    write("PASS", oauthToken);
+  public void establishConnection(String username, String oAuthToken) {
+    write("PASS", oAuthToken);
     write("NICK", username);
   }
 
