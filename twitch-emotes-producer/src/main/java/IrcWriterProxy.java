@@ -25,15 +25,17 @@ import java.io.PrintWriter;
 /**
  * Handles sending messages to the irc server.
  */
-public class TwitchIrcWriterProxy {
+public class IrcWriterProxy {
 
-  private PrintWriter mOut;
+  private final PrintWriter mOut;
+  private final String mDaemon;
 
   /**
    * @param outputStream output stream of irc server connection
    */
-  TwitchIrcWriterProxy(OutputStream outputStream) {
+  IrcWriterProxy(OutputStream outputStream, String daemon) {
     mOut = new PrintWriter(outputStream);
+    mDaemon = daemon;
   }
 
   /**
@@ -45,9 +47,9 @@ public class TwitchIrcWriterProxy {
   }
 
   /**
-   * Joins the IRC of specified twitch.tv channel.
+   * Joins the IRC of specified channel.
    *
-   * @param channelName name of twitch.tv channel which chat you want to join.
+   * @param channelName name of IRC channel you want to join
    */
   public void join(String channelName) {
     String formattedChannelName = channelName.toLowerCase().replace(" ", "");
@@ -55,9 +57,9 @@ public class TwitchIrcWriterProxy {
   }
 
   /**
-   * Leaves the IRC channel of specified twitch.tv channel.
+   * Leaves the IRC channel
    *
-   * @param channelName name of twitch.tv channel which chat you want to leave.
+   * @param channelName name of IRC channel you want to leave.
    */
   public void part(String channelName) {
     String formattedChannelName = channelName.toLowerCase().replace(" ", "");
@@ -70,8 +72,8 @@ public class TwitchIrcWriterProxy {
    * @param serverMessage message received from the server
    */
   public boolean pong(String serverMessage) {
-    if (serverMessage.matches("PING :tmi.twitch.tv")) {
-      write("PONG", ":tmi:twitch.tv");
+    if (serverMessage.matches("PING " + mDaemon)) {
+      write("PONG", mDaemon);
       return true;
     }
     return false;
