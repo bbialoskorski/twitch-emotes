@@ -43,7 +43,7 @@ public class IrcProducersMonitoringTask implements Runnable {
    * @param lock Lock for synchronization of access to Hashtable of irc connections
    */
   IrcProducersMonitoringTask(Map<String, Future> producerFutures, ExecutorService executor,
-                               IrcProducerTaskFactory taskFactory, Lock lock) {
+      IrcProducerTaskFactory taskFactory, Lock lock) {
     mProducerFutures = producerFutures;
     mExecutor = executor;
     mTaskFactory = taskFactory;
