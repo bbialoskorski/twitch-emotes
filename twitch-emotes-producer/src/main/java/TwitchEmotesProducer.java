@@ -36,6 +36,13 @@ import org.apache.kafka.clients.producer.Producer;
 public class TwitchEmotesProducer {
 
   public static void main(String args[]) throws IOException {
+
+    Properties config = new Properties();
+    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
+      config.load(stream);
+    }
+
     Runtime.getRuntime().addShutdownHook(new ServerShutdownHook());
     Properties props = new Properties();
     props.put("bootstrap.servers", "localhost:9092");
@@ -43,26 +50,23 @@ public class TwitchEmotesProducer {
     props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     try (Producer<String, String> kafkaProducer = new KafkaProducer<>(props)) {
-      TwitchStreamsApiWrapper twitchApi = new TwitchStreamsApiWrapper();
-      HashSet<String> streams = twitchApi.getLiveStreamNames(800);
+      TwitchStreamsApiWrapper twitchApi = new TwitchStreamsApiWrapper(config.getProperty("twitchClientId"));
+      HashSet<String> streams = twitchApi.getChannelNames(800);
       ExecutorService executor = Executors.newFixedThreadPool(800);
       ExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+      ExecutorService scheduler2 = Executors.newSingleThreadScheduledExecutor();
       ReentrantLock lock = new ReentrantLock();
       Hashtable<String, Future> scrapers = new Hashtable<>();
       DataSender<String> dataSender = new ToKafkaDataSender<String, String>(kafkaProducer, "twitch-chat");
 
-      Properties config = new Properties();
-      ClassLoader loader = Thread.currentThread().getContextClassLoader();
-      try (InputStream stream = loader.getResourceAsStream("config.properties")) {
-        config.load(stream);
-      }
-
-
 
       IrcProducerTaskFactory scrapersFactory = new IrcForwardingToKafkaTaskFactory(kafkaProducer, "twitch-chat", config.getProperty("twitchIrcServerAddress"), Integer.parseInt(config.getProperty("twitchIrcServerPort")), (String) config.get("twitchIrcDaemon"), config.getProperty("twitchUsername"), config.getProperty("twitchOAuthToken"));
+      /*
       for (String stream : streams) {
         scrapers.put(stream, executor.submit(scrapersFactory.createIrcProducer(stream)));
       }
+      */
+      ((ScheduledExecutorService) scheduler2).scheduleAtFixedRate(new IrcProducersManagingTask(800, scrapers, executor, scrapersFactory, twitchApi, lock), 0, 60, TimeUnit.MINUTES);
       ((ScheduledExecutorService) scheduler).scheduleAtFixedRate(new IrcProducersMonitoringTask(scrapers, executor, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
       while(true);
       /*
