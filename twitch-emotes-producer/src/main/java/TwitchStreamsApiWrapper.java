@@ -73,12 +73,11 @@ public class TwitchStreamsApiWrapper implements IrcChannelNamesProvider {
       // upper bound of 100 streams.
       builder.setParameter("first", Integer.toString(firstPageSize));
     } catch (URISyntaxException e) {
-      throw new AssertionError("This should never happen, it means there is an error in "
-          + "configuration and we cannot recover.", e);
+      throw new AssertionError("This should never happen", e);
     }
 
     HttpGet request;
-    Pair<String, ArrayList<String>> processedResponseData = null;
+    Pair<String, ArrayList<String>> processedResponseData;
 
     try {
       request = new HttpGet(builder.build());
@@ -86,8 +85,7 @@ public class TwitchStreamsApiWrapper implements IrcChannelNamesProvider {
       // Loading first page of streams with (count mod 100) streams. Rest of streams will be loaded
       // in batches of 100.
     } catch (URISyntaxException e) {
-      throw new AssertionError("This should never happen, it means that there is an error "
-          + "in configuration and we can't recover.", e);
+      throw new AssertionError("This should never happen.", e);
     }
 
     try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
@@ -116,9 +114,8 @@ public class TwitchStreamsApiWrapper implements IrcChannelNamesProvider {
           processedResponseData = httpClient.execute(request, resHandler);
           nextPagePointer = processedResponseData.getKey();
           streamNames.addAll(processedResponseData.getValue());
-        } catch (URISyntaxException | ClientProtocolException e) {
-          throw new AssertionError("This should never happen, it means that there is an error "
-              + "in configuration and we can't recover.", e);
+        } catch (URISyntaxException e) {
+          throw new AssertionError("This should never happen.", e);
         }
       }
     }
