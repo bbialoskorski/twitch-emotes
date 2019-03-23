@@ -20,7 +20,7 @@ SOFTWARE.
 ================================================================================*/
 
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.Lock;
@@ -31,20 +31,20 @@ import java.util.concurrent.locks.Lock;
  */
 public class IrcProducersMonitoringTask implements Runnable {
 
-  private Hashtable<String, Future> mConnections;
+  private Map<String, Future> mProducerFutures;
   private ExecutorService mExecutor;
   private Lock mLock;
   private IrcProducerTaskFactory mTaskFactory;
 
   /**
-   * @param connections Dict of stream names mapped to Futures of their respective connections
+   * @param producerFutures Map of irc producer futures keyed with channel names
    * @param executor Executor handling irc connections
    * @param taskFactory factory producing tasks scraping IRC channels
    * @param lock Lock for synchronization of access to Hashtable of irc connections
    */
-  IrcProducersMonitoringTask(Hashtable<String, Future> connections, ExecutorService executor,
+  IrcProducersMonitoringTask(Map<String, Future> producerFutures, ExecutorService executor,
                                IrcProducerTaskFactory taskFactory, Lock lock) {
-    mConnections = connections;
+    mProducerFutures = producerFutures;
     mExecutor = executor;
     mTaskFactory = taskFactory;
     mLock = lock;
@@ -53,13 +53,13 @@ public class IrcProducersMonitoringTask implements Runnable {
   @Override
   public void run() {
     mLock.lock();
-    ArrayList<String> streamNames = new ArrayList<>(mConnections.keySet());
+    ArrayList<String> streamNames = new ArrayList<>(mProducerFutures.keySet());
     for (String stream : streamNames) {
-      Future future = mConnections.get(stream);
+      Future future = mProducerFutures.get(stream);
       if (future.isDone()) {
-        mConnections.remove(stream);
+        mProducerFutures.remove(stream);
         future = mExecutor.submit(mTaskFactory.createIrcProducer(stream));
-        mConnections.put(stream, future);
+        mProducerFutures.put(stream, future);
       }
     }
     mLock.unlock();
