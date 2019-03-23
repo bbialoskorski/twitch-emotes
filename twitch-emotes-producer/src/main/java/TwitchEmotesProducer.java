@@ -63,7 +63,7 @@ public class TwitchEmotesProducer {
       for (String stream : streams) {
         scrapers.put(stream, executor.submit(scrapersFactory.createIrcProducer(stream)));
       }
-      ((ScheduledExecutorService) scheduler).scheduleAtFixedRate(new IrcConnectionsMonitoringTask(scrapers, executor, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
+      ((ScheduledExecutorService) scheduler).scheduleAtFixedRate(new IrcProducersMonitoringTask(scrapers, executor, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
       while(true);
       /*
       for (int i = 0; i < 100; i++)
