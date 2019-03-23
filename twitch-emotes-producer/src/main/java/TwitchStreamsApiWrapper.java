@@ -20,11 +20,9 @@ SOFTWARE.
 ================================================================================*/
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Properties;
 import javafx.util.Pair;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
@@ -38,19 +36,15 @@ import org.apache.http.impl.client.HttpClients;
  *
  * @see <a href="https://dev.twitch.tv/docs/api/reference/#get-streams"> Api reference </a>
  */
-public class TwitchStreamsApiWrapper {
+public class TwitchStreamsApiWrapper implements IrcChannelNamesProvider {
 
-  private Properties mConfig;
+  private final String mClientId;
 
-  TwitchStreamsApiWrapper () {
-    mConfig = new Properties();
-    ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
-      mConfig.load(stream);
-    } catch (IOException e) {
-      // Invalid config file, we can't recover from this.
-      throw new AssertionError("Invalid config.properties file, can't recover from this.", e);
-    }
+  /**
+   * @param clientId twitch.tv developer client id
+   */
+  TwitchStreamsApiWrapper(String clientId) {
+    mClientId = clientId;
   }
 
   /**
@@ -60,7 +54,7 @@ public class TwitchStreamsApiWrapper {
    * @return HashSet containing stream names of maximum _count_ streams.
    * @throws IOException in case of a problem with execution of http request
    */
-  public HashSet<String> getLiveStreamNames(int count) throws IOException {
+  public HashSet<String> getChannelNames(int count) throws IOException {
     HashSet<String> streamNames;
     // This guarantees that we won't fetch too many pages when count is divisible by 100.
     int pages = count % 100 == 0 ? (count / 100) - 1 : count / 100;
@@ -74,7 +68,7 @@ public class TwitchStreamsApiWrapper {
     ResponseHandler<Pair<String, ArrayList<String>>> resHandler = new StreamListResponseHandler();
 
     try {
-      builder = new URIBuilder(mConfig.getProperty("twitchApiStreamsRoute"));
+      builder = new URIBuilder("https://api.twitch.tv/helix/streams/");
       // This parameter controls how many streams we will get in a response. This parameter has an
       // upper bound of 100 streams.
       builder.setParameter("first", Integer.toString(firstPageSize));
@@ -88,7 +82,7 @@ public class TwitchStreamsApiWrapper {
 
     try {
       request = new HttpGet(builder.build());
-      request.setHeader("Client-ID", mConfig.getProperty("twitchClientId"));
+      request.setHeader("Client-ID", mClientId);
       // Loading first page of streams with (count mod 100) streams. Rest of streams will be loaded
       // in batches of 100.
     } catch (URISyntaxException e) {
@@ -118,7 +112,7 @@ public class TwitchStreamsApiWrapper {
 
         try {
           request = new HttpGet(builder.build());
-          request.setHeader("Client-ID", mConfig.getProperty("twitchClientId"));
+          request.setHeader("Client-ID", mClientId);
           processedResponseData = httpClient.execute(request, resHandler);
           nextPagePointer = processedResponseData.getKey();
           streamNames.addAll(processedResponseData.getValue());
