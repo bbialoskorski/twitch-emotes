@@ -23,9 +23,9 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 /**
+ * Sends data to Kafka producer.
  *
- *
- * @param <K>
+ * @param <K> Kafka key type
  */
 public class ToKafkaDataSender<K, V> implements DataSender<V> {
 
@@ -33,9 +33,8 @@ public class ToKafkaDataSender<K, V> implements DataSender<V> {
   private String mKafkaTopic;
 
   /**
-   *
-   * @param kafkaProducer
-   * @param kafkaTopic
+   * @param kafkaProducer kafka producer instance you want to send data through
+   * @param kafkaTopic kafka topic to which you want to publish your data
    */
   ToKafkaDataSender(Producer<K, V> kafkaProducer, String kafkaTopic) {
     mKafkaProducer = kafkaProducer;
