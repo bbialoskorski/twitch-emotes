@@ -21,7 +21,6 @@ SOFTWARE.
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -35,46 +34,46 @@ import org.apache.kafka.clients.producer.Producer;
 
 public class TwitchEmotesProducer {
 
-  public static void main(String args[]) throws IOException {
+  public static void main(String args[]) {
 
+    // Loading config file.
     Properties config = new Properties();
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
     try (InputStream stream = loader.getResourceAsStream("config.properties")) {
       config.load(stream);
+    } catch (IOException e) {
+      throw new AssertionError("Invalid config, we can't recover from this.", e);
     }
 
-    Runtime.getRuntime().addShutdownHook(new ServerShutdownHook());
+    // Configuring kafka producer.
     Properties props = new Properties();
-    props.put("bootstrap.servers", "localhost:9092");
-    props.put("batch.size", 300);
+    props.put("bootstrap.servers", config.getProperty("kafkaBootstrapServer"));
+    props.put("batch.size", config.getProperty("kafkaBatchSize"));
     props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-    try (Producer<String, String> kafkaProducer = new KafkaProducer<>(props)) {
-      TwitchStreamsApiWrapper twitchApi = new TwitchStreamsApiWrapper(config.getProperty("twitchClientId"));
-      HashSet<String> streams = twitchApi.getChannelNames(800);
-      ExecutorService executor = Executors.newFixedThreadPool(800);
-      ExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-      ExecutorService scheduler2 = Executors.newSingleThreadScheduledExecutor();
+    Producer<String, String> kafkaProducer = new KafkaProducer<>(props);
+      TwitchStreamsApiWrapper twitchApi =
+          new TwitchStreamsApiWrapper(config.getProperty("twitchClientId"));
+      ExecutorService executorPool =
+          Executors.newFixedThreadPool(Integer.parseInt(config.getProperty("numOfProducerThreads")));
+      ScheduledExecutorService monitoringTaskScheduler = Executors.newSingleThreadScheduledExecutor();
+      ScheduledExecutorService managingTaskScheduler = Executors.newSingleThreadScheduledExecutor();
+      Hashtable<String, Future> producerFutures = new Hashtable<>();
       ReentrantLock lock = new ReentrantLock();
-      Hashtable<String, Future> scrapers = new Hashtable<>();
-      DataSender<String> dataSender = new ToKafkaDataSender<String, String>(kafkaProducer, "twitch-chat");
 
+      IrcProducerTaskFactory scrapersFactory = new IrcForwardingToKafkaTaskFactory(kafkaProducer,
+          config.getProperty("twitchChatKafkaTopic"), config.getProperty("twitchIrcServerAddress"),
+          Integer.parseInt(config.getProperty("twitchIrcServerPort")),
+          (String) config.get("twitchIrcDaemon"), config.getProperty("twitchUsername"),
+          config.getProperty("twitchOAuthToken"));
+      monitoringTaskScheduler.scheduleAtFixedRate(new IrcProducersManagingTask(
+          Integer.parseInt(config.getProperty("numOfProducers")), producerFutures,
+          executorPool, scrapersFactory, twitchApi, lock), 0, 60, TimeUnit.MINUTES);
+      managingTaskScheduler.scheduleAtFixedRate(new IrcProducersMonitoringTask(producerFutures,
+          executorPool, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
 
-      IrcProducerTaskFactory scrapersFactory = new IrcForwardingToKafkaTaskFactory(kafkaProducer, "twitch-chat", config.getProperty("twitchIrcServerAddress"), Integer.parseInt(config.getProperty("twitchIrcServerPort")), (String) config.get("twitchIrcDaemon"), config.getProperty("twitchUsername"), config.getProperty("twitchOAuthToken"));
-      /*
-      for (String stream : streams) {
-        scrapers.put(stream, executor.submit(scrapersFactory.createIrcProducer(stream)));
-      }
-      */
-      ((ScheduledExecutorService) scheduler2).scheduleAtFixedRate(new IrcProducersManagingTask(800, scrapers, executor, scrapersFactory, twitchApi, lock), 0, 60, TimeUnit.MINUTES);
-      ((ScheduledExecutorService) scheduler).scheduleAtFixedRate(new IrcProducersMonitoringTask(scrapers, executor, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
-      while(true);
-      /*
-      for (int i = 0; i < 100; i++)
-        kafkaProducer.send(new ProducerRecord<String, String>("twitch-chat", Integer.toString(i), Integer.toString(i)));
-      */
-    }
-
+      Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(executorPool,
+          monitoringTaskScheduler, managingTaskScheduler, kafkaProducer));
   }
 
 }
