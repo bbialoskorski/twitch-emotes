@@ -1,5 +1,7 @@
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import org.apache.kafka.clients.producer.Producer;
 
 /**
@@ -28,9 +30,16 @@ public class ServerShutdownHook extends Thread {
 
   @Override
   public void run() {
-      mMonitoringTaskScheduler.shutdownNow();
+    try {
       mManagingTaskScheduler.shutdownNow();
-      mThreadPool.shutdownNow();
-      mKafkaProducer.close();
+      mManagingTaskScheduler.awaitTermination(1000, TimeUnit.SECONDS);
+      mMonitoringTaskScheduler.shutdownNow();
+      mMonitoringTaskScheduler.awaitTermination(1000, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Logger.getLogger(ServerShutdownHook.class.getName()).warning(e.getMessage());
+    }
+    mThreadPool.shutdownNow();
+    mKafkaProducer.close();
+    Logger.getLogger(ServerShutdownHook.class.getName()).info("Server finished.");
   }
 }
