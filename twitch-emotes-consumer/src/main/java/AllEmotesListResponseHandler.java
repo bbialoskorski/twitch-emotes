@@ -19,29 +19,40 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ================================================================================*/
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Properties;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ResponseHandler;
+import org.apache.http.util.EntityUtils;
 
-public class TwitchEmotesConsumer {
+/**
+ * Handler processing twitch.tv emotes api request for all emotes response into ArrayList
+ * of emotes.
+ */
+public class AllEmotesListResponseHandler implements ResponseHandler<ArrayList<String>> {
 
-  public static void main(String args[]) throws IOException {
-    // Loading config file.
-    Properties config = new Properties();
-    ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    try (InputStream stream = loader.getResourceAsStream("config.properties")) {
-      config.load(stream);
-    } catch (IOException e) {
-      throw new AssertionError("Invalid config, we can't recover from this.", e);
+  @Override
+  public ArrayList<String> handleResponse(HttpResponse response) throws IOException {
+    ArrayList<String> emotes = new ArrayList<>();
+    String jsonString;
+
+    HttpEntity entity = response.getEntity();
+    jsonString = EntityUtils.toString(entity);
+
+    JsonObject responseJson = new JsonParser().parse(jsonString).getAsJsonObject();
+
+    JsonArray emotesJsonArray = responseJson.getAsJsonArray("emoticons");
+
+    for (JsonElement emote : emotesJsonArray) {
+      String emoteString = ((JsonObject)emote).get("code").getAsString();
+      emotes.add(emoteString);
     }
 
-    // Getting list of emotes to count.
-    TwitchEmotesApiWrapper emotesApi = new TwitchEmotesApiWrapper();
-    ArrayList<String> emoteList = emotesApi.getGlobalEmotes(config.getProperty("twitchClientId"));
-    for (String emote: emoteList) {
-      System.out.println(emote);
-    }
+    return emotes;
   }
-
 }
