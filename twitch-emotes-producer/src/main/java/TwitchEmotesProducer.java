@@ -68,7 +68,7 @@ public class TwitchEmotesProducer {
           config.getProperty("twitchOAuthToken"));
       monitoringTaskScheduler.scheduleAtFixedRate(new IrcProducersManagingTask(
           Integer.parseInt(config.getProperty("numOfProducers")), producerFutures,
-          executorPool, scrapersFactory, twitchApi, lock), 0, 60, TimeUnit.MINUTES);
+          executorPool, scrapersFactory, twitchApi, lock), 0, 60, TimeUnit.SECONDS);
       managingTaskScheduler.scheduleAtFixedRate(new IrcProducersMonitoringTask(producerFutures,
           executorPool, scrapersFactory, lock), 10, 10, TimeUnit.SECONDS);
 
