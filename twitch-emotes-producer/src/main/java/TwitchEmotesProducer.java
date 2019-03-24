@@ -35,7 +35,6 @@ import org.apache.kafka.clients.producer.Producer;
 public class TwitchEmotesProducer {
 
   public static void main(String args[]) {
-
     // Loading config file.
     Properties config = new Properties();
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
