@@ -64,7 +64,8 @@ public class TwitchEmotesApiWrapper {
   }
 
   /**
-   * Performs api call for list of all twitch,tv emotes.
+   * Performs api call for list of all twitch.tv emotes. This function returns a huge amount of
+   * data and might take a long time to finish.
    *
    * @return list of all twitch.tv emotes
    * @throws IOException in case of a problem or connection error
