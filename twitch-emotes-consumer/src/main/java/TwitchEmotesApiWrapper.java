@@ -30,20 +30,28 @@ import org.apache.http.impl.client.HttpClients;
  */
 public class TwitchEmotesApiWrapper {
 
+  private String mClientId;
+
+  /**
+   * @param clientId twitch.tv dev client id
+   */
+  TwitchEmotesApiWrapper(String clientId) {
+    mClientId = clientId;
+  }
+
   /**
    * Performs api call for list of twitch.tv global emotes.
    *
-   * @param clientId twitch.tv dev client id
    * @return list of global twitch.tv emotes
    * @throws IOException in case of a problem or connection error
    */
-  public ArrayList<String> getGlobalEmotes(String clientId) throws IOException {
+  public ArrayList<String> getGlobalEmotes() throws IOException {
     ArrayList<String> emoteList;
 
     try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
       HttpGet request = new HttpGet("https://api.twitch.tv/kraken/chat/emoticon_images?emotesets=0");
       // HttpGet request = new HttpGet("https://api.twitch.tv/kraken/chat/emoticon_images");
-      request.setHeader("Client-ID", clientId);
+      request.setHeader("Client-ID", mClientId);
       request.setHeader("Accept", "application/vnd.twitchtv.v5+json");
 
       ArrayList<String> emoteSets = new ArrayList<>();
@@ -58,16 +66,15 @@ public class TwitchEmotesApiWrapper {
   /**
    * Performs api call for list of all twitch,tv emotes.
    *
-   * @param clientId twitch.tv dev client id
    * @return list of all twitch.tv emotes
    * @throws IOException in case of a problem or connection error
    */
-  public ArrayList<String> getAllEmotes(String clientId) throws IOException {
+  public ArrayList<String> getAllEmotes() throws IOException {
     ArrayList<String> emoteList;
 
     try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
       HttpGet request = new HttpGet("https://api.twitch.tv/kraken/chat/emoticon_images");
-      request.setHeader("Client-ID", clientId);
+      request.setHeader("Client-ID", mClientId);
       request.setHeader("Accept", "application/vnd.twitchtv.v5+json");
 
       emoteList = httpClient.execute(request, new AllEmotesListResponseHandler());
