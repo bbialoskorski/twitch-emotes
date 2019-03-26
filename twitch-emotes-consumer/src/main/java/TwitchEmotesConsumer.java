@@ -43,19 +43,26 @@ import scala.Tuple2;
 
 public class TwitchEmotesConsumer {
 
-  public static void main(String args[]) throws IOException, InterruptedException {
+  public static void main(String args[]) {
     // Loading config file.
     Properties config = new Properties();
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
     try (InputStream stream = loader.getResourceAsStream("config.properties")) {
       config.load(stream);
     } catch (IOException e) {
-      throw new AssertionError("Invalid config, we can't recover from this.", e);
+      throw new AssertionError("Invalid config, can't recover from this.", e);
     }
 
     // Getting list of emotes to count.
-    TwitchEmotesApiWrapper emotesApi = new TwitchEmotesApiWrapper(config.getProperty("twitchClientId"));
-    ArrayList<String> emoteList = emotesApi.getAllEmotes();
+    TwitchEmotesApiWrapper emotesApi =
+        new TwitchEmotesApiWrapper(config.getProperty("twitchClientId"));
+    ArrayList<String> emoteList = null;
+    try {
+      emoteList = emotesApi.getAllEmotes();
+    } catch (IOException e) {
+      // This call has to succeed in order for this application to proceed.
+      throw new AssertionError(e);
+    }
     HashSet<String> emotes = new HashSet<>(emoteList);
 
     // Setting up Spark.
@@ -120,7 +127,11 @@ public class TwitchEmotesConsumer {
     emoteTotalCount.print(1000);
 
     jssc.start();
-    jssc.awaitTermination();
+    try {
+      jssc.awaitTermination();
+    } catch (InterruptedException e) {
+      Logger.getLogger(TwitchEmotesConsumer.class.getName()).error(e);
+    }
   }
 
 }
