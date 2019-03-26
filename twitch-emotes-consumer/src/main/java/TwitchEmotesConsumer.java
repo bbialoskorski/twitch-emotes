@@ -19,20 +19,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ================================================================================*/
 
+import com.datastax.spark.connector.japi.CassandraJavaUtil;
+import com.datastax.spark.connector.japi.CassandraStreamingJavaUtil;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import kafka.serializer.StringDecoder;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
@@ -40,6 +46,8 @@ import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 import scala.Tuple2;
+import scala.Tuple4;
+import scala.Tuple5;
 
 public class TwitchEmotesConsumer {
 
@@ -58,18 +66,21 @@ public class TwitchEmotesConsumer {
         new TwitchEmotesApiWrapper(config.getProperty("twitchClientId"));
     ArrayList<String> emoteList = null;
     try {
-      emoteList = emotesApi.getAllEmotes();
+      emoteList = emotesApi.getGlobalEmotes();
     } catch (IOException e) {
       // This call has to succeed in order for this application to proceed.
       throw new AssertionError(e);
     }
     HashSet<String> emotes = new HashSet<>(emoteList);
 
-    // Setting up Spark.
+    // Setting up Spark and Cassandra connector.
     SparkConf sparkConfig = new SparkConf()
-        .setMaster(config.getProperty("sparkMaster"))
-        .setAppName(config.getProperty("sparkAppName"));
-    JavaStreamingContext jssc = new JavaStreamingContext(sparkConfig,
+        .set("spark.cassandra.connection.host", config.getProperty("sparkCassandraConnectionHost"))
+        .set("spark.cassandra.auth.username", config.getProperty("sparkCassandraAuthUsername"))
+        .set("spark.cassandra.auth.password", config.getProperty("sparkCassandraAuthPassword"));
+    JavaSparkContext jsc = new JavaSparkContext(config.getProperty("sparkMaster"),
+        config.getProperty("sparkAppName"), sparkConfig);
+    JavaStreamingContext jssc = new JavaStreamingContext(jsc,
         Durations.seconds(Integer.parseInt(config.getProperty("sparkStreamingSecondsDuration"))));
 
     // Making spark less verbose.
@@ -122,9 +133,34 @@ public class TwitchEmotesConsumer {
     JavaPairDStream<String, Integer> emoteTotalCount = emoteCountsByChannel.mapToPair(
         t -> new Tuple2<>(t._1._2, t._2));
 
+    // Creating DStream for Cassandra insertion.
+    JavaDStream<Tuple5<UUID, String, String, Integer, Timestamp>> timestampedCountsByChannel =
+        emoteCountsByChannel.map(t -> new Tuple5<>(UUID.randomUUID(), t._1._2, t._1._1, t._2,
+            new Timestamp(Calendar.getInstance().getTimeInMillis())));
+
+
+    // Saving emote counts by channel to Cassandra table: id, emote, channel, count, timestamp.
+    CassandraStreamingJavaUtil.javaFunctions(timestampedCountsByChannel)
+        .writerBuilder(config.getProperty("cassandraKeyspaceName"), "channel_emote_occurrences",
+            CassandraJavaUtil.mapTupleToRow(UUID.class, String.class, String.class, Integer.class,
+                Timestamp.class))
+        .saveToCassandra();
+
+    // Counting total occurrences of each emote across all channels.
     emoteTotalCount = emoteTotalCount.reduceByKey((i1, i2) -> i1 + i2);
 
-    emoteTotalCount.print(1000);
+    // Creating DStream for Cassandra insertion.
+    JavaDStream<Tuple4<UUID, String, Integer, Timestamp>> timestampedTotalCount =
+        emoteTotalCount.map(t -> new Tuple4<>(UUID.randomUUID(), t._1, t._2,
+            new Timestamp(Calendar.getInstance().getTimeInMillis())));
+
+
+    // Saving total emote counts to Cassandra table: id, emote, count, timestamp.
+    CassandraStreamingJavaUtil.javaFunctions(timestampedTotalCount)
+        .writerBuilder(config.getProperty("cassandraKeyspaceName"), "emote-occurrences",
+            CassandraJavaUtil.mapTupleToRow(UUID.class, String.class, Integer.class,
+                Timestamp.class))
+        .saveToCassandra();
 
     jssc.start();
     try {
